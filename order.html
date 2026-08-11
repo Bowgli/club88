@@ -127,9 +127,19 @@
   .detail-view.active{ display:block; }
   .order-view.hidden{ display:none; }
   .back{
-    background:none; border:none; color:var(--gold-bright);
-    font-size:14px; font-weight:500; padding:0; margin-bottom:14px; cursor:pointer;
+    width:100%;
+    background:none;
+    border:1px solid var(--border);
+    border-radius:12px;
+    color:var(--cream);
+    font-size:15px;
+    font-weight:600;
+    padding:13px;
+    margin-top:12px;
+    cursor:pointer;
+    font-family:inherit;
   }
+  .back:hover{ border-color:var(--gold); color:var(--gold-bright); }
   label{ display:block; font-size:13px; font-weight:500; margin:0 0 8px; color:var(--cream-dim); }
   input[type=text]{
     width:100%;
@@ -220,7 +230,6 @@
   <div class="marquee">
     <p class="club">CLUB <span class="eight">88</span></p>
     <p class="tagline">Saipan's Best Little Gaming Club</p>
-    <p class="place">Slot Club &middot; Vegas Resort &middot; Saipan</p>
   </div>
 
   <div class="panel">
@@ -241,7 +250,6 @@
     </div>
 
     <div id="detailView" class="detail-view">
-      <button class="back" id="backBtn">&larr; Back</button>
       <h1 id="detailTitle">Drinks</h1>
       <p class="sub" id="detailSub">Choose an item</p>
 
@@ -250,6 +258,7 @@
         <div class="subgrid" id="drinkTypeButtons">
           <button type="button" class="subopt" data-drink="Coffee">Coffee</button>
           <button type="button" class="subopt" data-drink="Juice">Juice</button>
+          <button type="button" class="subopt" data-drink="Water">Water</button>
         </div>
 
         <div id="coffeeFields" style="display:none;">
@@ -291,6 +300,10 @@
         <div id="juiceFields" style="display:none;">
           <p class="sub" style="margin-top:0;">We serve one house juice — press send below and it'll be brought to your machine.</p>
         </div>
+
+        <div id="waterFields" style="display:none;">
+          <p class="sub" style="margin-top:0;">We serve bottled water — press send below and it'll be brought to your machine.</p>
+        </div>
       </div>
 
       <div id="snackFields" style="display:none;">
@@ -307,6 +320,7 @@
       </div>
 
       <button class="submit" id="submitBtn">Send request</button>
+      <button class="back" id="backBtn">&larr; Back</button>
     </div>
   </div>
 
@@ -343,6 +357,7 @@
   const drinkFields = document.getElementById('drinkFields');
   const coffeeFields = document.getElementById('coffeeFields');
   const juiceFields = document.getElementById('juiceFields');
+  const waterFields = document.getElementById('waterFields');
   const snackFields = document.getElementById('snackFields');
   const voucherFields = document.getElementById('voucherFields');
   const serviceFields = document.getElementById('serviceFields');
@@ -361,6 +376,17 @@
     document.querySelectorAll('.subopt').forEach(b => b.classList.remove('selected'));
     coffeeFields.style.display = 'none';
     juiceFields.style.display = 'none';
+    waterFields.style.display = 'none';
+  }
+
+  const submitBtn = document.getElementById('submitBtn');
+
+  function updateSubmitState() {
+    if (currentService === 'Drinks' && !selectedDrinkType) {
+      submitBtn.disabled = true;
+    } else {
+      submitBtn.disabled = false;
+    }
   }
 
   document.querySelectorAll('.option').forEach(btn => {
@@ -376,7 +402,7 @@
 
       if (currentService === 'Drinks') {
         drinkFields.style.display = 'block';
-        detailSub.textContent = 'Coffee or juice?';
+        detailSub.textContent = 'Coffee, juice, or water?';
       } else if (currentService === 'Snacks') {
         snackFields.style.display = 'block';
         detailSub.textContent = 'Our house snack';
@@ -388,6 +414,7 @@
         detailSub.textContent = 'Describe the machine issue';
       }
 
+      updateSubmitState();
       menuView.style.display = 'none';
       detailView.classList.add('active');
     });
@@ -406,6 +433,8 @@
       btn.classList.add('selected');
       coffeeFields.style.display = selectedDrinkType === 'Coffee' ? 'block' : 'none';
       juiceFields.style.display = selectedDrinkType === 'Juice' ? 'block' : 'none';
+      waterFields.style.display = selectedDrinkType === 'Water' ? 'block' : 'none';
+      updateSubmitState();
     });
   });
 
@@ -460,6 +489,8 @@
         details = 'Coffee x' + stickQty + ' stick(s), water level ' + (selectedWaterLevel || 'not set');
       } else if (selectedDrinkType === 'Juice') {
         details = 'Juice (house juice)';
+      } else if (selectedDrinkType === 'Water') {
+        details = 'Water (bottled)';
       } else {
         details = '(no drink type selected)';
       }

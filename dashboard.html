@@ -139,7 +139,10 @@
 
   <header>
     <h1>Machine requests</h1>
-    <div class="live"><span class="dot"></span> Live — refreshes every 10s</div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <button id="soundToggle" class="live" style="cursor:pointer; background:var(--card); border:1px solid var(--border); border-radius:20px; padding:6px 14px; color:var(--cream-dim); font-family:inherit;">🔔 Enable sound alerts</button>
+      <div class="live"><span class="dot"></span> Live — refreshes every 10s</div>
+    </div>
   </header>
   <p class="sub">Every request from every machine on the floor, traced to its source</p>
 
@@ -194,12 +197,66 @@
   const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzO1RKAOKcmx7-x765DOnSkalkBdF7cSmEleapHCm8_eJmHOp9hxkCszp6cIslmB9oO/exec';
 
   let allRequests = [];
+  let knownRequestIds = null;
+  let audioCtx = null;
+  let soundEnabled = false;
+
+  const soundToggle = document.getElementById('soundToggle');
+  soundToggle.addEventListener('click', () => {
+    soundEnabled = !soundEnabled;
+    if (soundEnabled) {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      soundToggle.textContent = '🔔 Sound alerts: On';
+      soundToggle.style.color = 'var(--gold-bright)';
+      soundToggle.style.borderColor = 'var(--gold)';
+    } else {
+      soundToggle.textContent = '🔔 Enable sound alerts';
+      soundToggle.style.color = 'var(--cream-dim)';
+      soundToggle.style.borderColor = 'var(--border)';
+    }
+  });
+
+  // 3-second bell alarm — three chimes spaced across ~3 seconds
+  function playAlarmBell() {
+    if (!soundEnabled || !audioCtx) return;
+    try {
+      const freqs = [988, 1480, 1976];
+      [0, 1, 2].forEach(offset => {
+        const now = audioCtx.currentTime + offset;
+        freqs.forEach((f, i) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = f;
+          gain.gain.setValueAtTime(0.0001, now);
+          gain.gain.exponentialRampToValueAtTime(0.3 / (i + 1), now + 0.01);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.9);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 1);
+        });
+      });
+    } catch (err) {
+      console.error('Alarm sound failed', err);
+    }
+  }
 
   async function loadRequests() {
     try {
       const res = await fetch(APPS_SCRIPT_URL + '?action=list');
       const data = await res.json();
       if (data.ok) {
+        const currentIds = data.requests.map(r => r.id);
+        if (knownRequestIds !== null) {
+          const hasNewRequest = currentIds.some(id => !knownRequestIds.has(id));
+          if (hasNewRequest) playAlarmBell();
+        }
+        knownRequestIds = new Set(currentIds);
+
         allRequests = data.requests;
         populateMachineFilter();
         render();
