@@ -294,19 +294,7 @@
       </div>
 
       <div id="snackFields" style="display:none;">
-        <label>Choose your snack</label>
-        <div class="subgrid" id="snackButtons">
-          <button type="button" class="subopt" data-snack="Boy Bawang">Boy Bawang</button>
-          <button type="button" class="subopt" data-snack="Ding Dong">Ding Dong</button>
-          <button type="button" class="subopt" data-snack="Pop Corn">Pop Corn</button>
-          <button type="button" class="subopt" data-snack="Banana Chips">Banana Chips</button>
-        </div>
-        <label>Quantity</label>
-        <div class="qty-row">
-          <button type="button" class="qty-btn" id="snackQtyMinus">−</button>
-          <span id="snackQtyValue" style="font-weight:700;font-size:16px;">1</span>
-          <button type="button" class="qty-btn" id="snackQtyPlus">+</button>
-        </div>
+        <p class="sub" style="margin-top:0;">We serve one snack — press send below and it'll be brought to your machine.</p>
       </div>
 
       <div id="voucherFields" style="display:none;">
@@ -362,18 +350,13 @@
   let currentService = '';
   let selectedDrinkType = '';
   let selectedWaterLevel = '';
-  let selectedSnack = '';
   let stickQty = 1;
-  let snackQty = 1;
 
   function resetDetailFields() {
     selectedDrinkType = '';
     selectedWaterLevel = '';
-    selectedSnack = '';
     stickQty = 1;
-    snackQty = 1;
     document.getElementById('stickValue').textContent = stickQty;
-    document.getElementById('snackQtyValue').textContent = snackQty;
     document.getElementById('issueText').value = '';
     document.querySelectorAll('.subopt').forEach(b => b.classList.remove('selected'));
     coffeeFields.style.display = 'none';
@@ -396,7 +379,7 @@
         detailSub.textContent = 'Coffee or juice?';
       } else if (currentService === 'Snacks') {
         snackFields.style.display = 'block';
-        detailSub.textContent = 'Pick a snack and quantity';
+        detailSub.textContent = 'Our house snack';
       } else if (currentService === 'Voucher') {
         voucherFields.style.display = 'block';
         detailSub.textContent = 'Slot Club voucher';
@@ -435,15 +418,6 @@
     });
   });
 
-  // Snack selection
-  document.querySelectorAll('#snackButtons .subopt').forEach(btn => {
-    btn.addEventListener('click', () => {
-      selectedSnack = btn.dataset.snack;
-      document.querySelectorAll('#snackButtons .subopt').forEach(b => b.classList.remove('selected'));
-      btn.classList.add('selected');
-    });
-  });
-
   document.getElementById('stickMinus').addEventListener('click', () => {
     stickQty = Math.max(1, stickQty - 1);
     document.getElementById('stickValue').textContent = stickQty;
@@ -451,15 +425,6 @@
   document.getElementById('stickPlus').addEventListener('click', () => {
     stickQty = stickQty + 1;
     document.getElementById('stickValue').textContent = stickQty;
-  });
-
-  document.getElementById('snackQtyMinus').addEventListener('click', () => {
-    snackQty = Math.max(1, snackQty - 1);
-    document.getElementById('snackQtyValue').textContent = snackQty;
-  });
-  document.getElementById('snackQtyPlus').addEventListener('click', () => {
-    snackQty = snackQty + 1;
-    document.getElementById('snackQtyValue').textContent = snackQty;
   });
 
   // Synthesized bell chime — no external audio file needed
@@ -499,7 +464,7 @@
         details = '(no drink type selected)';
       }
     } else if (currentService === 'Snacks') {
-      details = (selectedSnack || '(no snack selected)') + ' x' + snackQty;
+      details = 'Snack (house snack)';
     } else if (currentService === 'Voucher') {
       details = 'Slot Club voucher redemption';
     } else {
