@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Club 88 — Floor Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Share+Tech+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a1f17;
+    --panel:#0f2a20;
+    --card:#123527;
+    --border:#294a3a;
+    --cream:#f4ecd8;
+    --cream-dim:#a8a294;
+    --gold:#d9b25c;
+    --gold-bright:#f3d488;
+    --pending:#e2a83f;
+    --pending-bg:#2c2311;
+    --done:#6fbf8b;
+    --done-bg:#12271c;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Inter',system-ui,sans-serif;
+    background:radial-gradient(ellipse at top, #123a2a 0%, #0a1f17 60%);
+    color:var(--cream);
+    padding:28px 20px 60px;
+  }
+  .wrap{ max-width:980px; margin:0 auto; }
+
+  .marquee{ margin-bottom:22px; }
+  .marquee .club{
+    font-family:'Playfair Display',serif;
+    font-weight:700;
+    font-size:30px;
+    color:var(--gold-bright);
+    margin:0;
+    text-shadow:0 0 16px rgba(243,212,136,.3);
+  }
+  .marquee .club .eight{ color:#c15a5a; }
+  .marquee .tagline{
+    font-size:11px; text-transform:uppercase; letter-spacing:.14em;
+    color:var(--gold); margin:4px 0 0;
+  }
+
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    flex-wrap:wrap; gap:10px; margin-bottom:2px;
+  }
+  h1{ font-family:'Playfair Display',serif; font-size:20px; margin:0; color:var(--cream); }
+  .live{
+    font-size:12px; color:var(--cream-dim);
+    display:flex; align-items:center; gap:6px;
+  }
+  .live .dot{
+    width:8px;height:8px;border-radius:50%;
+    background:var(--gold-bright);
+    animation:pulse 2s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: no-preference){
+    @keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.3} }
+  }
+  .sub{ color:var(--cream-dim); font-size:14px; margin:4px 0 22px; }
+
+  .stats{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:22px; }
+  .stat{
+    background:var(--panel); border:1px solid var(--border);
+    border-radius:14px; padding:16px 18px;
+  }
+  .stat .num{
+    font-family:'Share Tech Mono',monospace; font-size:26px; color:var(--gold-bright);
+  }
+  .stat .lbl{ font-size:11px; color:var(--cream-dim); text-transform:uppercase; letter-spacing:.06em; }
+
+  .filters{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
+  select{
+    padding:9px 12px; border:1px solid var(--border); border-radius:10px;
+    font-family:inherit; font-size:13px; background:var(--card); color:var(--cream);
+  }
+
+  table{
+    width:100%; border-collapse:collapse; background:var(--card);
+    border-radius:14px; overflow:hidden; border:1px solid var(--border);
+  }
+  th, td{ text-align:left; padding:12px 14px; font-size:13px; border-bottom:1px solid var(--border); }
+  th{
+    background:#0d2a1e; font-weight:600; text-transform:uppercase;
+    font-size:11px; letter-spacing:.05em; color:var(--gold);
+  }
+  tr:last-child td{ border-bottom:none; }
+  .machine-cell{ font-family:'Share Tech Mono',monospace; font-weight:700; color:var(--gold-bright); }
+  .badge{ display:inline-block; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:500; }
+  .badge.pending{ background:var(--pending-bg); color:var(--pending); }
+  .badge.done{ background:var(--done-bg); color:var(--done); }
+  .mark-btn{
+    border:1px solid var(--border); background:none; border-radius:8px;
+    padding:5px 10px; font-size:12px; cursor:pointer; font-family:inherit; color:var(--cream-dim);
+  }
+  .mark-btn:hover{ border-color:var(--gold); color:var(--gold-bright); }
+  .empty{ text-align:center; padding:40px; color:var(--cream-dim); font-size:14px; }
+
+  .duty-panel{
+    background:var(--panel); border:1px solid var(--border);
+    border-radius:14px; padding:16px 18px; margin-bottom:22px;
+  }
+  .duty-panel .duty-head{
+    display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;
+  }
+  .duty-panel h2{ font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--gold); margin:0; }
+  .duty-chips{ display:flex; flex-wrap:wrap; gap:8px; }
+  .duty-chip{
+    background:var(--done-bg); color:var(--done);
+    border-radius:24px; padding:6px 14px 6px 6px; font-size:13px; font-weight:500;
+    display:flex; align-items:center; gap:8px;
+  }
+  .duty-chip .avatar{
+    width:26px; height:26px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Share Tech Mono',monospace;
+    font-size:11px; font-weight:700;
+    color:#0a1f17;
+    flex-shrink:0;
+  }
+  .duty-chip .role{ color:var(--cream-dim); font-weight:400; }
+  .duty-empty{ color:var(--cream-dim); font-size:13px; }
+  .onduty-cell{ font-size:12px; color:var(--cream-dim); max-width:160px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="marquee">
+    <p class="club">CLUB <span class="eight">88</span> FLOOR DASHBOARD</p>
+    <p class="tagline">Saipan's Best Little Gaming Club</p>
+  </div>
+
+  <header>
+    <h1>Machine requests</h1>
+    <div class="live"><span class="dot"></span> Live — refreshes every 10s</div>
+  </header>
+  <p class="sub">Every request from every machine on the floor, traced to its source</p>
+
+  <div class="duty-panel">
+    <div class="duty-head">
+      <h2>On duty now</h2>
+    </div>
+    <div class="duty-chips" id="dutyChips"><span class="duty-empty">Loading...</span></div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="num" id="statTotal">0</div><div class="lbl">Total requests</div></div>
+    <div class="stat"><div class="num" id="statPending">0</div><div class="lbl">Pending</div></div>
+    <div class="stat"><div class="num" id="statMachines">0</div><div class="lbl">Active machines</div></div>
+  </div>
+
+  <div class="filters">
+    <select id="filterMachine"><option value="">All machines</option></select>
+    <select id="filterService">
+      <option value="">All services</option>
+      <option value="Drinks">Drinks</option>
+      <option value="Snacks">Snacks</option>
+      <option value="Voucher">Voucher</option>
+      <option value="Machine Service">Machine service</option>
+    </select>
+    <select id="filterStatus">
+      <option value="">All statuses</option>
+      <option value="Pending">Pending</option>
+      <option value="Done">Done</option>
+    </select>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Machine</th>
+        <th>Service</th>
+        <th>Details</th>
+        <th>On duty at request time</th>
+        <th>Status</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+  <div class="empty" id="emptyState" style="display:none;">No requests yet</div>
+</div>
+
+<script>
+  // Replace with your deployed Apps Script Web App URL
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzO1RKAOKcmx7-x765DOnSkalkBdF7cSmEleapHCm8_eJmHOp9hxkCszp6cIslmB9oO/exec';
+
+  let allRequests = [];
+
+  async function loadRequests() {
+    try {
+      const res = await fetch(APPS_SCRIPT_URL + '?action=list');
+      const data = await res.json();
+      if (data.ok) {
+        allRequests = data.requests;
+        populateMachineFilter();
+        render();
+      }
+    } catch (err) {
+      console.error('Failed to load requests', err);
+    }
+  }
+
+  function populateMachineFilter() {
+    const select = document.getElementById('filterMachine');
+    const current = select.value;
+    const machines = [...new Set(allRequests.map(r => r.machine))].sort();
+    select.innerHTML = '<option value="">All machines</option>' +
+      machines.map(m => `<option value="${m}">${m}</option>`).join('');
+    select.value = current;
+  }
+
+  function render() {
+    const machineFilter = document.getElementById('filterMachine').value;
+    const serviceFilter = document.getElementById('filterService').value;
+    const statusFilter = document.getElementById('filterStatus').value;
+
+    const filtered = allRequests.filter(r =>
+      (!machineFilter || r.machine === machineFilter) &&
+      (!serviceFilter || r.service === serviceFilter) &&
+      (!statusFilter || r.status === statusFilter)
+    );
+
+    document.getElementById('statTotal').textContent = allRequests.length;
+    document.getElementById('statPending').textContent = allRequests.filter(r => r.status === 'Pending').length;
+    document.getElementById('statMachines').textContent = new Set(allRequests.map(r => r.machine)).size;
+
+    const tbody = document.getElementById('tableBody');
+    const emptyState = document.getElementById('emptyState');
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = '';
+      emptyState.style.display = 'block';
+      return;
+    }
+    emptyState.style.display = 'none';
+
+    tbody.innerHTML = filtered.map(r => {
+      const time = new Date(r.timestamp).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
+      const badgeClass = r.status === 'Done' ? 'done' : 'pending';
+      const nextStatus = r.status === 'Done' ? 'Pending' : 'Done';
+      const onDuty = (r.onDuty && r.onDuty.length) ? r.onDuty.join(', ') : 'No one scheduled';
+      return `
+        <tr>
+          <td>${time}</td>
+          <td class="machine-cell">${r.machine}</td>
+          <td>${r.service}</td>
+          <td>${r.details || '—'}</td>
+          <td class="onduty-cell">${onDuty}</td>
+          <td><span class="badge ${badgeClass}">${r.status}</span></td>
+          <td><button class="mark-btn" onclick="updateStatus('${r.id}','${nextStatus}')">Mark ${nextStatus}</button></td>
+        </tr>`;
+    }).join('');
+  }
+
+  const AVATAR_COLORS = ['#f3d488', '#d9b25c', '#6fbf8b', '#8fc9e0', '#e2a83f', '#c98f9f'];
+
+  function colorForName(name) {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+  }
+
+  function initialsForName(name) {
+    const parts = name.trim().split(/\s+/);
+    const first = parts[0] ? parts[0][0] : '';
+    const last = parts.length > 1 ? parts[parts.length - 1][0] : '';
+    return (first + last).toUpperCase();
+  }
+
+  async function loadStaffOnDuty() {
+    try {
+      const res = await fetch(APPS_SCRIPT_URL + '?action=staff');
+      const data = await res.json();
+      const container = document.getElementById('dutyChips');
+      if (data.ok && data.onDutyNow && data.onDutyNow.length) {
+        container.innerHTML = data.onDutyNow.map(function (entry) {
+          // entry looks like "Maria Santos (Floor Host)"
+          const match = entry.match(/^(.*) \((.*)\)$/);
+          const name = match ? match[1] : entry;
+          const role = match ? match[2] : '';
+          const initials = initialsForName(name);
+          const color = colorForName(name);
+          return `<span class="duty-chip">
+            <span class="avatar" style="background:${color}">${initials}</span>
+            ${name}<span class="role">${role}</span>
+          </span>`;
+        }).join('');
+      } else {
+        container.innerHTML = '<span class="duty-empty">No one scheduled right now</span>';
+      }
+    } catch (err) {
+      console.error('Failed to load staff', err);
+    }
+  }
+
+  async function updateStatus(id, status) {
+    try {
+      await fetch(APPS_SCRIPT_URL + '?action=update&id=' + encodeURIComponent(id) + '&status=' + encodeURIComponent(status));
+      loadRequests();
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  document.getElementById('filterMachine').addEventListener('change', render);
+  document.getElementById('filterService').addEventListener('change', render);
+  document.getElementById('filterStatus').addEventListener('change', render);
+
+  loadRequests();
+  loadStaffOnDuty();
+  setInterval(loadRequests, 10000);
+  setInterval(loadStaffOnDuty, 10000);
+</script>
+</body>
+</html>

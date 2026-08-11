@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Club 88 — Machine Request</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Share+Tech+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a1f17;
+    --panel:#0f2a20;
+    --card:#123527;
+    --border:#294a3a;
+    --cream:#f4ecd8;
+    --cream-dim:#a8a294;
+    --gold:#d9b25c;
+    --gold-bright:#f3d488;
+    --red:#a8323a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Inter',system-ui,sans-serif;
+    background:
+      radial-gradient(ellipse at top, #123a2a 0%, #0a1f17 60%);
+    color:var(--cream);
+    min-height:100vh;
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    padding:26px 16px 60px;
+  }
+  .kiosk{ width:100%; max-width:420px; }
+
+  .marquee{
+    text-align:center;
+    margin-bottom:20px;
+  }
+  .marquee .club{
+    font-family:'Playfair Display',serif;
+    font-weight:700;
+    font-size:38px;
+    color:var(--gold-bright);
+    letter-spacing:.03em;
+    margin:0;
+    text-shadow:0 0 18px rgba(243,212,136,.35);
+  }
+  .marquee .club .eight{ color:var(--red); }
+  .marquee .tagline{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.14em;
+    color:var(--gold);
+    margin:6px 0 0;
+  }
+  .marquee .place{
+    font-size:11px;
+    color:var(--cream-dim);
+    letter-spacing:.08em;
+    margin:2px 0 0;
+  }
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:18px 20px;
+    margin-bottom:20px;
+  }
+  .panel .eyebrow{
+    font-size:11px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--gold);
+    margin:0 0 6px;
+  }
+  .panel .machine-id{
+    font-family:'Share Tech Mono',monospace;
+    font-size:32px;
+    color:var(--gold-bright);
+    letter-spacing:.05em;
+    margin:0;
+    text-shadow:0 0 12px rgba(243,212,136,.3);
+  }
+  .panel .machine-id.dim{ color:#6b6a63; text-shadow:none; }
+
+  h1{
+    font-family:'Playfair Display',serif;
+    font-weight:600;
+    font-size:22px;
+    margin:0 0 4px;
+    color:var(--cream);
+  }
+  .sub{
+    color:var(--cream-dim);
+    font-size:14px;
+    margin:0 0 20px;
+  }
+  .grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .option{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:20px 14px;
+    text-align:left;
+    cursor:pointer;
+    font-family:inherit;
+    font-size:15px;
+    font-weight:600;
+    color:var(--cream);
+    transition:border-color .15s, transform .1s;
+  }
+  .option:active{ transform:scale(.97); }
+  .option:hover{ border-color:var(--gold); }
+  .option .tag{
+    display:block;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--gold);
+    margin-bottom:6px;
+    font-weight:500;
+  }
+
+  .detail-view{ display:none; }
+  .detail-view.active{ display:block; }
+  .order-view.hidden{ display:none; }
+  .back{
+    background:none; border:none; color:var(--gold-bright);
+    font-size:14px; font-weight:500; padding:0; margin-bottom:14px; cursor:pointer;
+  }
+  label{ display:block; font-size:13px; font-weight:500; margin:0 0 8px; color:var(--cream-dim); }
+  input[type=text]{
+    width:100%;
+    padding:12px 14px;
+    border:1px solid var(--border);
+    border-radius:10px;
+    font-size:15px;
+    font-family:inherit;
+    margin-bottom:14px;
+    background:var(--card);
+    color:var(--cream);
+  }
+  input[type=text]::placeholder{ color:#6b6a5f; }
+  .qty-row{ display:flex; align-items:center; gap:14px; margin-bottom:18px; }
+  .qty-btn{
+    width:40px; height:40px; border-radius:10px; border:1px solid var(--border);
+    background:var(--card); color:var(--cream); font-size:18px; cursor:pointer;
+  }
+
+  .subgrid{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px; }
+  .subopt{
+    padding:11px 16px;
+    border-radius:10px;
+    border:1px solid var(--border);
+    background:var(--card);
+    color:var(--cream);
+    font-family:inherit;
+    font-size:13px;
+    font-weight:500;
+    cursor:pointer;
+    transition:border-color .15s, background .15s, color .15s;
+  }
+  .subopt:hover{ border-color:var(--gold); }
+  .subopt.selected{
+    border-color:var(--gold-bright);
+    background:rgba(243,212,136,.14);
+    color:var(--gold-bright);
+  }
+  .subopt.level{
+    width:42px; height:42px; padding:0;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .subopt.cup-opt{
+    width:auto; height:auto;
+    padding:8px 10px 6px;
+    flex-direction:column;
+    display:flex;
+    align-items:center;
+    gap:4px;
+  }
+  .subopt.cup-opt svg{ color:var(--cream-dim); }
+  .subopt.cup-opt.selected svg{ color:var(--gold-bright); }
+  .subopt.cup-opt span{ font-size:11px; }
+
+  .submit{
+    width:100%;
+    padding:14px;
+    border:none;
+    border-radius:12px;
+    background:linear-gradient(180deg, var(--gold-bright), var(--gold));
+    color:#231a08;
+    font-size:15px;
+    font-weight:700;
+    cursor:pointer;
+    letter-spacing:.02em;
+  }
+  .submit:disabled{ opacity:.5; cursor:default; }
+
+  .confirm{ display:none; text-align:center; padding:30px 10px; }
+  .confirm.active{ display:block; }
+  .confirm .check{
+    width:56px;height:56px;border-radius:50%;
+    background:var(--gold-bright);color:#231a08;
+    display:flex;align-items:center;justify-content:center;
+    font-size:28px;margin:0 auto 16px;
+  }
+  .confirm h2{ font-family:'Playfair Display',serif; font-size:19px; margin:0 0 6px; color:var(--cream); }
+  .confirm p{ color:var(--cream-dim); font-size:14px; margin:0 0 20px; }
+  .again{
+    background:none;border:1px solid var(--border);border-radius:10px;
+    padding:10px 18px;font-size:14px;cursor:pointer;font-family:inherit;color:var(--cream);
+  }
+</style>
+</head>
+<body>
+<div class="kiosk">
+
+  <div class="marquee">
+    <p class="club">CLUB <span class="eight">88</span></p>
+    <p class="tagline">Saipan's Best Little Gaming Club</p>
+    <p class="place">Slot Club &middot; Vegas Resort &middot; Saipan</p>
+  </div>
+
+  <div class="panel">
+    <p class="eyebrow">Machine</p>
+    <p class="machine-id" id="machineIdDisplay">— — — —</p>
+  </div>
+
+  <div id="orderView" class="order-view">
+    <div id="menuView">
+      <h1>What can we get you?</h1>
+      <p class="sub">Choose what you need</p>
+      <div class="grid">
+        <button class="option" data-service="Drinks"><span class="tag">Beverage</span>Drinks</button>
+        <button class="option" data-service="Snacks"><span class="tag">Bites</span>Snacks</button>
+        <button class="option" data-service="Voucher"><span class="tag">Slot Club</span>Redeem voucher</button>
+        <button class="option" data-service="Machine Service"><span class="tag">Support</span>Machine service</button>
+      </div>
+    </div>
+
+    <div id="detailView" class="detail-view">
+      <button class="back" id="backBtn">&larr; Back</button>
+      <h1 id="detailTitle">Drinks</h1>
+      <p class="sub" id="detailSub">Choose an item</p>
+
+      <div id="drinkFields" style="display:none;">
+        <label>Choose your drink</label>
+        <div class="subgrid" id="drinkTypeButtons">
+          <button type="button" class="subopt" data-drink="Coffee">Coffee</button>
+          <button type="button" class="subopt" data-drink="Juice">Juice</button>
+        </div>
+
+        <div id="coffeeFields" style="display:none;">
+          <label>Number of coffee sticks</label>
+          <div class="qty-row">
+            <button type="button" class="qty-btn" id="stickMinus">−</button>
+            <span id="stickValue" style="font-weight:700;font-size:16px;">1</span>
+            <button type="button" class="qty-btn" id="stickPlus">+</button>
+          </div>
+          <label>Water level in cup</label>
+          <div class="subgrid" id="waterLevelButtons">
+            <button type="button" class="subopt level cup-opt" data-level="1/2">
+              <svg viewBox="0 0 28 34" width="26" height="30">
+                <defs><clipPath id="cupClipHalf"><path d="M4 4 H24 L21 30 Q21 32 19 32 H9 Q7 32 7 30 Z"/></clipPath></defs>
+                <path d="M4 4 H24 L21 30 Q21 32 19 32 H9 Q7 32 7 30 Z" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                <rect x="4" y="18" width="20" height="14" fill="currentColor" opacity="0.55" clip-path="url(#cupClipHalf)"/>
+              </svg>
+              <span>1/2</span>
+            </button>
+            <button type="button" class="subopt level cup-opt" data-level="3/4">
+              <svg viewBox="0 0 28 34" width="26" height="30">
+                <defs><clipPath id="cupClip34"><path d="M4 4 H24 L21 30 Q21 32 19 32 H9 Q7 32 7 30 Z"/></clipPath></defs>
+                <path d="M4 4 H24 L21 30 Q21 32 19 32 H9 Q7 32 7 30 Z" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                <rect x="4" y="11" width="20" height="21" fill="currentColor" opacity="0.55" clip-path="url(#cupClip34)"/>
+              </svg>
+              <span>3/4</span>
+            </button>
+            <button type="button" class="subopt level cup-opt" data-level="Full">
+              <svg viewBox="0 0 28 34" width="26" height="30">
+                <defs><clipPath id="cupClipFull"><path d="M4 4 H24 L21 30 Q21 32 19 32 H9 Q7 32 7 30 Z"/></clipPath></defs>
+                <path d="M4 4 H24 L21 30 Q21 32 19 32 H9 Q7 32 7 30 Z" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                <rect x="4" y="4" width="20" height="28" fill="currentColor" opacity="0.55" clip-path="url(#cupClipFull)"/>
+              </svg>
+              <span>Full</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="juiceFields" style="display:none;">
+          <p class="sub" style="margin-top:0;">We serve one house juice — press send below and it'll be brought to your machine.</p>
+        </div>
+      </div>
+
+      <div id="snackFields" style="display:none;">
+        <label>Choose your snack</label>
+        <div class="subgrid" id="snackButtons">
+          <button type="button" class="subopt" data-snack="Boy Bawang">Boy Bawang</button>
+          <button type="button" class="subopt" data-snack="Ding Dong">Ding Dong</button>
+          <button type="button" class="subopt" data-snack="Pop Corn">Pop Corn</button>
+        </div>
+        <label>Quantity</label>
+        <div class="qty-row">
+          <button type="button" class="qty-btn" id="snackQtyMinus">−</button>
+          <span id="snackQtyValue" style="font-weight:700;font-size:16px;">1</span>
+          <button type="button" class="qty-btn" id="snackQtyPlus">+</button>
+        </div>
+      </div>
+
+      <div id="voucherFields" style="display:none;">
+        <p class="sub" style="margin-top:0;">Press send below to redeem your Slot Club voucher at this machine. A host will process it for you.</p>
+      </div>
+
+      <div id="serviceFields" style="display:none;">
+        <label>What's the issue?</label>
+        <input type="text" id="issueText" placeholder="e.g. Machine not paying out tickets">
+      </div>
+
+      <button class="submit" id="submitBtn">Send request</button>
+    </div>
+  </div>
+
+  <div id="confirmView" class="confirm">
+    <div class="check">&#10003;</div>
+    <h2>Request sent</h2>
+    <p>A host will be with you at the machine shortly.</p>
+    <button class="again" id="againBtn">Make another request</button>
+  </div>
+
+</div>
+
+<script>
+  // Replace with your deployed Apps Script Web App URL
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzO1RKAOKcmx7-x765DOnSkalkBdF7cSmEleapHCm8_eJmHOp9hxkCszp6cIslmB9oO/exec';
+
+  const params = new URLSearchParams(window.location.search);
+  const machine = params.get('machine') || 'UNKNOWN';
+  const machineDisplay = document.getElementById('machineIdDisplay');
+  if (machine === 'UNKNOWN') {
+    machineDisplay.textContent = 'NO MACHINE ID';
+    machineDisplay.classList.add('dim');
+  } else {
+    machineDisplay.textContent = machine;
+  }
+
+  const menuView = document.getElementById('menuView');
+  const detailView = document.getElementById('detailView');
+  const orderView = document.getElementById('orderView');
+  const confirmView = document.getElementById('confirmView');
+  const detailTitle = document.getElementById('detailTitle');
+  const detailSub = document.getElementById('detailSub');
+
+  const drinkFields = document.getElementById('drinkFields');
+  const coffeeFields = document.getElementById('coffeeFields');
+  const juiceFields = document.getElementById('juiceFields');
+  const snackFields = document.getElementById('snackFields');
+  const voucherFields = document.getElementById('voucherFields');
+  const serviceFields = document.getElementById('serviceFields');
+
+  let currentService = '';
+  let selectedDrinkType = '';
+  let selectedWaterLevel = '';
+  let selectedSnack = '';
+  let stickQty = 1;
+  let snackQty = 1;
+
+  function resetDetailFields() {
+    selectedDrinkType = '';
+    selectedWaterLevel = '';
+    selectedSnack = '';
+    stickQty = 1;
+    snackQty = 1;
+    document.getElementById('stickValue').textContent = stickQty;
+    document.getElementById('snackQtyValue').textContent = snackQty;
+    document.getElementById('issueText').value = '';
+    document.querySelectorAll('.subopt').forEach(b => b.classList.remove('selected'));
+    coffeeFields.style.display = 'none';
+    juiceFields.style.display = 'none';
+  }
+
+  document.querySelectorAll('.option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentService = btn.dataset.service;
+      detailTitle.textContent = currentService === 'Voucher' ? 'Redeem voucher' : currentService;
+      resetDetailFields();
+
+      drinkFields.style.display = 'none';
+      snackFields.style.display = 'none';
+      voucherFields.style.display = 'none';
+      serviceFields.style.display = 'none';
+
+      if (currentService === 'Drinks') {
+        drinkFields.style.display = 'block';
+        detailSub.textContent = 'Coffee or juice?';
+      } else if (currentService === 'Snacks') {
+        snackFields.style.display = 'block';
+        detailSub.textContent = 'Pick a snack and quantity';
+      } else if (currentService === 'Voucher') {
+        voucherFields.style.display = 'block';
+        detailSub.textContent = 'Slot Club voucher';
+      } else {
+        serviceFields.style.display = 'block';
+        detailSub.textContent = 'Describe the machine issue';
+      }
+
+      menuView.style.display = 'none';
+      detailView.classList.add('active');
+    });
+  });
+
+  document.getElementById('backBtn').addEventListener('click', () => {
+    detailView.classList.remove('active');
+    menuView.style.display = 'block';
+  });
+
+  // Drink type selection
+  document.querySelectorAll('#drinkTypeButtons .subopt').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedDrinkType = btn.dataset.drink;
+      document.querySelectorAll('#drinkTypeButtons .subopt').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      coffeeFields.style.display = selectedDrinkType === 'Coffee' ? 'block' : 'none';
+      juiceFields.style.display = selectedDrinkType === 'Juice' ? 'block' : 'none';
+    });
+  });
+
+  // Water level selection
+  document.querySelectorAll('#waterLevelButtons .subopt').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedWaterLevel = btn.dataset.level;
+      document.querySelectorAll('#waterLevelButtons .subopt').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    });
+  });
+
+  // Snack selection
+  document.querySelectorAll('#snackButtons .subopt').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedSnack = btn.dataset.snack;
+      document.querySelectorAll('#snackButtons .subopt').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    });
+  });
+
+  document.getElementById('stickMinus').addEventListener('click', () => {
+    stickQty = Math.max(1, stickQty - 1);
+    document.getElementById('stickValue').textContent = stickQty;
+  });
+  document.getElementById('stickPlus').addEventListener('click', () => {
+    stickQty = stickQty + 1;
+    document.getElementById('stickValue').textContent = stickQty;
+  });
+
+  document.getElementById('snackQtyMinus').addEventListener('click', () => {
+    snackQty = Math.max(1, snackQty - 1);
+    document.getElementById('snackQtyValue').textContent = snackQty;
+  });
+  document.getElementById('snackQtyPlus').addEventListener('click', () => {
+    snackQty = snackQty + 1;
+    document.getElementById('snackQtyValue').textContent = snackQty;
+  });
+
+  // Synthesized bell chime — no external audio file needed
+  function playBellSound() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const now = ctx.currentTime;
+      const freqs = [988, 1480, 1976];
+      freqs.forEach((f, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = f;
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.3 / (i + 1), now + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 1.3);
+      });
+    } catch (err) {
+      console.error('Bell sound failed', err);
+    }
+  }
+
+  document.getElementById('submitBtn').addEventListener('click', async (e) => {
+    const btn = e.target;
+    let details = '';
+
+    if (currentService === 'Drinks') {
+      if (selectedDrinkType === 'Coffee') {
+        details = 'Coffee x' + stickQty + ' stick(s), water level ' + (selectedWaterLevel || 'not set');
+      } else if (selectedDrinkType === 'Juice') {
+        details = 'Juice (house juice)';
+      } else {
+        details = '(no drink type selected)';
+      }
+    } else if (currentService === 'Snacks') {
+      details = (selectedSnack || '(no snack selected)') + ' x' + snackQty;
+    } else if (currentService === 'Voucher') {
+      details = 'Slot Club voucher redemption';
+    } else {
+      details = document.getElementById('issueText').value || '(no details entered)';
+    }
+
+    playBellSound();
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+
+    try {
+      await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        body: new URLSearchParams({ machine, service: currentService, details })
+      });
+    } catch (err) {
+      console.error(err);
+    }
+
+    orderView.classList.add('hidden');
+    confirmView.classList.add('active');
+  });
+
+  document.getElementById('againBtn').addEventListener('click', () => {
+    confirmView.classList.remove('active');
+    orderView.classList.remove('hidden');
+    detailView.classList.remove('active');
+    menuView.style.display = 'block';
+    document.getElementById('submitBtn').disabled = false;
+    document.getElementById('submitBtn').textContent = 'Send request';
+  });
+</script>
+</body>
+</html>
