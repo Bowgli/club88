@@ -197,7 +197,9 @@
   const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzO1RKAOKcmx7-x765DOnSkalkBdF7cSmEleapHCm8_eJmHOp9hxkCszp6cIslmB9oO/exec';
 
   let allRequests = [];
-  let knownRequestIds = null;
+  let requestsById = new Map();
+  let missCounts = new Map();
+  let hasLoadedOnce = false;
   let audioCtx = null;
   let soundEnabled = false;
 
@@ -249,19 +251,44 @@
     try {
       const res = await fetch(APPS_SCRIPT_URL + '?action=list');
       const data = await res.json();
-      if (data.ok) {
-        const currentIds = data.requests.map(r => r.id);
-        if (knownRequestIds !== null) {
-          const hasNewRequest = currentIds.some(id => !knownRequestIds.has(id));
-          if (hasNewRequest) playAlarmBell();
-        }
-        knownRequestIds = new Set(currentIds);
+      if (!data.ok) return;
 
-        allRequests = data.requests;
-        populateMachineFilter();
-        render();
-        renderDutyChips(data.onDutyNow);
-      }
+      let hasNewRequest = false;
+      const incomingIds = new Set();
+
+      data.requests.forEach(r => {
+        incomingIds.add(r.id);
+        if (hasLoadedOnce && !requestsById.has(r.id)) {
+          hasNewRequest = true;
+        }
+        requestsById.set(r.id, r);
+        missCounts.set(r.id, 0);
+      });
+
+      // A request only gets removed after being absent for 2 consecutive polls in a row —
+      // this absorbs Google Sheets' occasional read lag so a request never flickers away
+      // and reappears. Real removals (e.g. someone deletes a row in the Sheet) still clear
+      // out within ~6 seconds.
+      Array.from(requestsById.keys()).forEach(id => {
+        if (!incomingIds.has(id)) {
+          const misses = (missCounts.get(id) || 0) + 1;
+          missCounts.set(id, misses);
+          if (misses >= 2) {
+            requestsById.delete(id);
+            missCounts.delete(id);
+          }
+        }
+      });
+
+      if (hasLoadedOnce && hasNewRequest) playAlarmBell();
+      hasLoadedOnce = true;
+
+      allRequests = Array.from(requestsById.values())
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+      populateMachineFilter();
+      render();
+      renderDutyChips(data.onDutyNow);
     } catch (err) {
       console.error('Failed to load requests', err);
     }
