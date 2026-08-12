@@ -498,19 +498,30 @@
   // reuses the SAME requestKey, so the backend's dedup guard makes retries
   // safe — a retry after a request that actually landed just returns the
   // same logged entry instead of creating a second row.
-  async function sendRequestWithRetry(payload, maxAttempts) {
+  //
+  // Each attempt is capped at `timeoutMs`: plain fetch() has no built-in
+  // timeout, so on a bad mobile connection a single attempt could otherwise
+  // hang for 30+ seconds before ever trying again. Cutting it short and
+  // retrying gets to a result much faster — the sheet write itself is
+  // already fast, it's the confirmation coming back that can stall.
+  async function sendRequestWithRetry(payload, maxAttempts, timeoutMs) {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
         const res = await fetch(APPS_SCRIPT_URL, {
           method: 'POST',
-          body: new URLSearchParams(payload)
+          body: new URLSearchParams(payload),
+          signal: controller.signal
         });
         const data = await res.json();
         if (data && data.ok) return true;
       } catch (err) {
         console.error('Send attempt ' + attempt + ' failed', err);
+      } finally {
+        clearTimeout(timer);
       }
-      if (attempt < maxAttempts) await wait(600 * attempt);
+      if (attempt < maxAttempts) await wait(300 * attempt);
     }
     return false;
   }
@@ -554,7 +565,8 @@
     // to resend a request that likely already went through.
     const confirmed = await sendRequestWithRetry(
       { machine, service: currentService, details, requestKey },
-      3
+      2,
+      2500
     );
 
     document.getElementById('confirmNote').style.display = confirmed ? 'none' : 'block';
