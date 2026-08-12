@@ -519,12 +519,21 @@
     btn.textContent = 'Sending...';
 
     try {
-      await fetch(APPS_SCRIPT_URL, {
+      const res = await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
         body: new URLSearchParams({ machine, service: currentService, details, requestKey })
       });
+      const data = await res.json();
+      if (!data || !data.ok) throw new Error('Server did not confirm the request');
     } catch (err) {
       console.error(err);
+      // Something actually failed — don't lie to the customer with a
+      // success screen. Let them see it and try again.
+      isSubmitting = false;
+      btn.disabled = false;
+      btn.textContent = 'Send request';
+      alert('Request could not be sent. Please try again.');
+      return;
     }
 
     orderView.classList.add('hidden');
