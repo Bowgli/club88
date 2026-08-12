@@ -193,21 +193,56 @@
 </div>
 
 <script>
-  // Replace with your deployed Apps Script Web App URL
-  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzO1RKAOKcmx7-x765DOnSkalkBdF7cSmEleapHCm8_eJmHOp9hxkCszp6cIslmB9oO/exec';
+  // Fast proxy Worker (reads/writes the sheet directly via the Sheets API —
+  // see worker.js). Handles list + mark-done for this dashboard. New order
+  // submissions from customers still go through Apps Script (order.html) —
+  // unaffected by this change.
+  const WORKER_URL = 'club88-dashboard.techsupport-saipanvegas.workers.dev';
 
   let allRequests = [];
+  let allStaff = [];
   let knownRequestIds = null;
   let audioCtx = null;
   let soundEnabled = false;
   let isLoadingList = false;
 
   // Statuses the staff just clicked but whose update fetch hasn't finished
-  // yet. While a request's id is in here, an in-flight 3-second poll won't
+  // yet. While a request's id is in here, an in-flight poll won't
   // overwrite its status with a possibly-stale value from the sheet — that
   // race is what caused a "Done" click to flash back to "Pending" and then
   // flip to "Done" again a few seconds later.
   const inFlightUpdates = new Map();
+
+  // ---- On-duty staff computation (mirrors Code.gs's findOnDutyStaff_) ----
+  // Runs in the browser now instead of server-side, using the browser's
+  // own local time/timezone — avoids the Worker having to guess the
+  // venue's timezone when reading raw sheet data.
+  const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  function toMinutes(value) {
+    const parts = (value || '').toString().split(':');
+    if (parts.length < 2) return null;
+    const h = parseInt(parts[0], 10), m = parseInt(parts[1], 10);
+    if (isNaN(h) || isNaN(m)) return null;
+    return h * 60 + m;
+  }
+
+  function findOnDutyStaff(date, staffList) {
+    const dayName = DAY_NAMES[date.getDay()];
+    const minutesNow = date.getHours() * 60 + date.getMinutes();
+    return staffList.filter(staff => {
+      const days = (staff.days || '').toString();
+      const worksToday = days.toLowerCase().indexOf('daily') !== -1 ||
+        days.split(',').map(d => d.trim()).indexOf(dayName) !== -1;
+      if (!worksToday) return false;
+      const start = toMinutes(staff.shiftStart);
+      const end = toMinutes(staff.shiftEnd);
+      if (start === null || end === null) return false;
+      return end > start
+        ? (minutesNow >= start && minutesNow < end)
+        : (minutesNow >= start || minutesNow < end);
+    }).map(s => s.name + ' (' + s.role + ')');
+  }
 
   const soundToggle = document.getElementById('soundToggle');
   soundToggle.addEventListener('click', () => {
@@ -257,9 +292,11 @@
     if (isLoadingList) return; // avoid overlapping polls if a response is slow
     isLoadingList = true;
     try {
-      const res = await fetch(APPS_SCRIPT_URL + '?action=list');
+      const res = await fetch(WORKER_URL + '?action=list');
       const data = await res.json();
       if (data.ok) {
+        allStaff = data.staff || [];
+
         const currentIds = data.requests.map(r => r.id);
         if (knownRequestIds !== null) {
           const hasNewRequest = currentIds.some(id => !knownRequestIds.has(id));
@@ -267,12 +304,13 @@
         }
         knownRequestIds = new Set(currentIds);
 
-        allRequests = data.requests.map(r =>
-          inFlightUpdates.has(r.id) ? { ...r, status: inFlightUpdates.get(r.id) } : r
-        );
+        allRequests = data.requests.map(r => {
+          const withDuty = { ...r, onDuty: findOnDutyStaff(new Date(r.timestamp), allStaff) };
+          return inFlightUpdates.has(r.id) ? { ...withDuty, status: inFlightUpdates.get(r.id) } : withDuty;
+        });
         populateMachineFilter();
         render();
-        renderDutyChips(data.onDutyNow);
+        renderDutyChips(findOnDutyStaff(new Date(), allStaff));
       }
     } catch (err) {
       console.error('Failed to load requests', err);
@@ -379,7 +417,7 @@
     inFlightUpdates.set(id, status);
 
     try {
-      const res = await fetch(APPS_SCRIPT_URL + '?action=update&id=' + encodeURIComponent(id) + '&status=' + encodeURIComponent(status));
+      const res = await fetch(WORKER_URL + '?action=update&id=' + encodeURIComponent(id) + '&status=' + encodeURIComponent(status));
       const data = await res.json();
       if (!data.ok && target) {
         target.status = previousStatus; // revert if the save actually failed
