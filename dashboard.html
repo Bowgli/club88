@@ -141,7 +141,7 @@
     <h1>Machine requests</h1>
     <div style="display:flex; align-items:center; gap:12px;">
       <button id="soundToggle" class="live" style="cursor:pointer; background:var(--card); border:1px solid var(--border); border-radius:20px; padding:6px 14px; color:var(--cream-dim); font-family:inherit;">🔔 Enable sound alerts</button>
-      <div class="live"><span class="dot"></span> Live — refreshes every 10s</div>
+      <div class="live"><span class="dot"></span> Live — refreshes every 5s</div>
     </div>
   </header>
   <p class="sub">Every request from every machine on the floor, traced to its source</p>
@@ -374,8 +374,8 @@
 
   loadRequests();
   loadStaffOnDuty();
-  setInterval(loadRequests, 10000);
-  setInterval(loadStaffOnDuty, 10000);
+  setInterval(loadRequests, 5000);
+  setInterval(loadStaffOnDuty, 5000);
 </script>
 </body>
 </html>
