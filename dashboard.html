@@ -141,7 +141,7 @@
     <h1>Machine requests</h1>
     <div style="display:flex; align-items:center; gap:12px;">
       <button id="soundToggle" class="live" style="cursor:pointer; background:var(--card); border:1px solid var(--border); border-radius:20px; padding:6px 14px; color:var(--cream-dim); font-family:inherit;">🔔 Enable sound alerts</button>
-      <div class="live"><span class="dot"></span> Live — refreshes every 5s</div>
+      <div class="live"><span class="dot"></span> Live — refreshes every 3s</div>
     </div>
   </header>
   <p class="sub">Every request from every machine on the floor, traced to its source</p>
@@ -260,6 +260,7 @@
         allRequests = data.requests;
         populateMachineFilter();
         render();
+        renderDutyChips(data.onDutyNow);
       }
     } catch (err) {
       console.error('Failed to load requests', err);
@@ -333,38 +334,48 @@
     return (first + last).toUpperCase();
   }
 
-  async function loadStaffOnDuty() {
-    try {
-      const res = await fetch(APPS_SCRIPT_URL + '?action=staff');
-      const data = await res.json();
-      const container = document.getElementById('dutyChips');
-      if (data.ok && data.onDutyNow && data.onDutyNow.length) {
-        container.innerHTML = data.onDutyNow.map(function (entry) {
-          // entry looks like "Maria Santos (Floor Host)"
-          const match = entry.match(/^(.*) \((.*)\)$/);
-          const name = match ? match[1] : entry;
-          const role = match ? match[2] : '';
-          const initials = initialsForName(name);
-          const color = colorForName(name);
-          return `<span class="duty-chip">
-            <span class="avatar" style="background:${color}">${initials}</span>
-            ${name}<span class="role">${role}</span>
-          </span>`;
-        }).join('');
-      } else {
-        container.innerHTML = '<span class="duty-empty">No one scheduled right now</span>';
-      }
-    } catch (err) {
-      console.error('Failed to load staff', err);
+  function renderDutyChips(onDutyNow) {
+    const container = document.getElementById('dutyChips');
+    if (onDutyNow && onDutyNow.length) {
+      container.innerHTML = onDutyNow.map(function (entry) {
+        // entry looks like "Maria Santos (Floor Host)"
+        const match = entry.match(/^(.*) \((.*)\)$/);
+        const name = match ? match[1] : entry;
+        const role = match ? match[2] : '';
+        const initials = initialsForName(name);
+        const color = colorForName(name);
+        return `<span class="duty-chip">
+          <span class="avatar" style="background:${color}">${initials}</span>
+          ${name}<span class="role">${role}</span>
+        </span>`;
+      }).join('');
+    } else {
+      container.innerHTML = '<span class="duty-empty">No one scheduled right now</span>';
     }
   }
 
   async function updateStatus(id, status) {
+    // Optimistic update — reflect the change immediately, don't wait on the network
+    const target = allRequests.find(r => r.id === id);
+    const previousStatus = target ? target.status : null;
+    if (target) {
+      target.status = status;
+      render();
+    }
+
     try {
-      await fetch(APPS_SCRIPT_URL + '?action=update&id=' + encodeURIComponent(id) + '&status=' + encodeURIComponent(status));
-      loadRequests();
+      const res = await fetch(APPS_SCRIPT_URL + '?action=update&id=' + encodeURIComponent(id) + '&status=' + encodeURIComponent(status));
+      const data = await res.json();
+      if (!data.ok && target) {
+        target.status = previousStatus; // revert if the save actually failed
+        render();
+      }
     } catch (err) {
       console.error(err);
+      if (target) {
+        target.status = previousStatus; // revert on network error
+        render();
+      }
     }
   }
 
@@ -373,9 +384,7 @@
   document.getElementById('filterStatus').addEventListener('change', render);
 
   loadRequests();
-  loadStaffOnDuty();
-  setInterval(loadRequests, 5000);
-  setInterval(loadStaffOnDuty, 5000);
+  setInterval(loadRequests, 3000);
 </script>
 </body>
 </html>
