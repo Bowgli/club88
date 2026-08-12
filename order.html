@@ -366,6 +366,14 @@
   let selectedDrinkType = '';
   let selectedWaterLevel = '';
   let stickQty = 1;
+  let isSubmitting = false;
+
+  // Unique per-request ID so the backend can spot and drop an accidental
+  // repeat (double tap, flaky connection, etc.) instead of logging it twice.
+  function newRequestKey() {
+    if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+    return 'k-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+  }
 
   function resetDetailFields() {
     selectedDrinkType = '';
@@ -481,7 +489,11 @@
   }
 
   document.getElementById('submitBtn').addEventListener('click', async (e) => {
+    if (isSubmitting) return; // blocks a double tap/click from firing twice
+    isSubmitting = true;
+
     const btn = e.target;
+    const requestKey = newRequestKey();
     let details = '';
 
     if (currentService === 'Drinks') {
@@ -509,7 +521,7 @@
     try {
       await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
-        body: new URLSearchParams({ machine, service: currentService, details })
+        body: new URLSearchParams({ machine, service: currentService, details, requestKey })
       });
     } catch (err) {
       console.error(err);
@@ -520,6 +532,7 @@
   });
 
   document.getElementById('againBtn').addEventListener('click', () => {
+    isSubmitting = false;
     confirmView.classList.remove('active');
     orderView.classList.remove('hidden');
     detailView.classList.remove('active');
