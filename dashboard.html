@@ -141,7 +141,7 @@
     <h1>Machine requests</h1>
     <div style="display:flex; align-items:center; gap:12px;">
       <button id="soundToggle" class="live" style="cursor:pointer; background:var(--card); border:1px solid var(--border); border-radius:20px; padding:6px 14px; color:var(--cream-dim); font-family:inherit;">🔔 Enable sound alerts</button>
-      <div class="live"><span class="dot"></span> Live — refreshes every 3s</div>
+      <div class="live"><span class="dot"></span> Live — refreshes every 5s</div>
     </div>
   </header>
   <p class="sub">Every request from every machine on the floor, traced to its source</p>
@@ -400,8 +400,36 @@
   document.getElementById('filterService').addEventListener('change', render);
   document.getElementById('filterStatus').addEventListener('change', render);
 
+  // A background/minimized tab does the customer/staff no good but still
+  // hammers Apps Script every few seconds if left running — that pile-up
+  // from forgotten tabs is what caused the 404s and multi-second waits.
+  // Pausing polling while the tab isn't visible, and resuming right away
+  // when it becomes visible again, keeps only actively-viewed dashboards
+  // contributing load.
+  const POLL_INTERVAL_MS = 5000;
+  let pollTimer = null;
+
+  function schedulePoll() {
+    if (pollTimer) clearTimeout(pollTimer);
+    if (document.visibilityState !== 'visible') return; // don't schedule while hidden
+    pollTimer = setTimeout(async () => {
+      await loadRequests();
+      schedulePoll();
+    }, POLL_INTERVAL_MS);
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      loadRequests(); // refresh immediately on return, then resume the cycle
+      schedulePoll();
+    } else if (pollTimer) {
+      clearTimeout(pollTimer);
+      pollTimer = null;
+    }
+  });
+
   loadRequests();
-  setInterval(loadRequests, 3000);
+  schedulePoll();
 </script>
 </body>
 </html>
