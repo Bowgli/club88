@@ -141,7 +141,7 @@
     <h1>Machine requests</h1>
     <div style="display:flex; align-items:center; gap:12px;">
       <button id="soundToggle" class="live" style="cursor:pointer; background:var(--card); border:1px solid var(--border); border-radius:20px; padding:6px 14px; color:var(--cream-dim); font-family:inherit;">🔔 Enable sound alerts</button>
-      <div class="live"><span class="dot"></span> Live — refreshes every 3s</div>
+      <div class="live"><span class="dot"></span> Live — refreshes every 5s</div>
     </div>
   </header>
   <p class="sub">Every request from every machine on the floor, traced to its source</p>
@@ -199,6 +199,7 @@
   let allRequests = [];
   let requestsById = new Map();
   let missCounts = new Map();
+  let pendingStatusUpdates = new Map();
   let hasLoadedOnce = false;
   let audioCtx = null;
   let soundEnabled = false;
@@ -221,12 +222,12 @@
     }
   });
 
-  // 3-second bell alarm — three chimes spaced across ~3 seconds
+  // 5-second bell alarm — five chimes spaced across ~5 seconds
   function playAlarmBell() {
     if (!soundEnabled || !audioCtx) return;
     try {
       const freqs = [988, 1480, 1976];
-      [0, 1, 2].forEach(offset => {
+      [0, 1, 2, 3, 4].forEach(offset => {
         const now = audioCtx.currentTime + offset;
         freqs.forEach((f, i) => {
           const osc = audioCtx.createOscillator();
@@ -261,6 +262,21 @@
         if (hasLoadedOnce && !requestsById.has(r.id)) {
           hasNewRequest = true;
         }
+
+        // If we just marked this request's status ourselves, trust our own value
+        // until the server confirms it (or 15s pass) — this stops a lagging Sheets
+        // read from flashing the status back to its old value mid-update.
+        const pending = pendingStatusUpdates.get(r.id);
+        if (pending) {
+          if (r.status === pending.status) {
+            pendingStatusUpdates.delete(r.id); // server confirmed, safe to trust it now
+          } else if (Date.now() - pending.timestamp < 15000) {
+            r = Object.assign({}, r, { status: pending.status });
+          } else {
+            pendingStatusUpdates.delete(r.id); // gave it long enough, trust the server
+          }
+        }
+
         requestsById.set(r.id, r);
         missCounts.set(r.id, 0);
       });
@@ -387,6 +403,7 @@
     const previousStatus = target ? target.status : null;
     if (target) {
       target.status = status;
+      pendingStatusUpdates.set(id, { status: status, timestamp: Date.now() });
       render();
     }
 
@@ -394,12 +411,14 @@
       const res = await fetch(APPS_SCRIPT_URL + '?action=update&id=' + encodeURIComponent(id) + '&status=' + encodeURIComponent(status));
       const data = await res.json();
       if (!data.ok && target) {
+        pendingStatusUpdates.delete(id);
         target.status = previousStatus; // revert if the save actually failed
         render();
       }
     } catch (err) {
       console.error(err);
       if (target) {
+        pendingStatusUpdates.delete(id);
         target.status = previousStatus; // revert on network error
         render();
       }
@@ -411,7 +430,7 @@
   document.getElementById('filterStatus').addEventListener('change', render);
 
   loadRequests();
-  setInterval(loadRequests, 3000);
+  setInterval(loadRequests, 5000);
 </script>
 </body>
 </html>
