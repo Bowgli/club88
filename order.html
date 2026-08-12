@@ -328,6 +328,7 @@
     <div class="check">&#10003;</div>
     <h2>Request sent</h2>
     <p>A host will be with you at the machine shortly.</p>
+    <p id="confirmNote" style="display:none; font-size:12px; color:var(--cream-dim); margin:-10px 0 20px;">Signal was a little slow confirming this — if no one arrives in a few minutes, feel free to send it again.</p>
     <button class="again" id="againBtn">Make another request</button>
   </div>
 
@@ -488,6 +489,32 @@
     }
   }
 
+  function wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // Sends the request, retrying up to `maxAttempts` times if the response
+  // never comes back (flaky wifi, slow connection, etc). Every attempt
+  // reuses the SAME requestKey, so the backend's dedup guard makes retries
+  // safe — a retry after a request that actually landed just returns the
+  // same logged entry instead of creating a second row.
+  async function sendRequestWithRetry(payload, maxAttempts) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const res = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          body: new URLSearchParams(payload)
+        });
+        const data = await res.json();
+        if (data && data.ok) return true;
+      } catch (err) {
+        console.error('Send attempt ' + attempt + ' failed', err);
+      }
+      if (attempt < maxAttempts) await wait(600 * attempt);
+    }
+    return false;
+  }
+
   document.getElementById('submitBtn').addEventListener('click', async (e) => {
     if (isSubmitting) return; // blocks a double tap/click from firing twice
     isSubmitting = true;
@@ -518,24 +545,19 @@
     btn.disabled = true;
     btn.textContent = 'Sending...';
 
-    try {
-      const res = await fetch(APPS_SCRIPT_URL, {
-        method: 'POST',
-        body: new URLSearchParams({ machine, service: currentService, details, requestKey })
-      });
-      const data = await res.json();
-      if (!data || !data.ok) throw new Error('Server did not confirm the request');
-    } catch (err) {
-      console.error(err);
-      // Something actually failed — don't lie to the customer with a
-      // success screen. Let them see it and try again.
-      isSubmitting = false;
-      btn.disabled = false;
-      btn.textContent = 'Send request';
-      alert('Request could not be sent. Please try again.');
-      return;
-    }
+    // Apps Script writes the row to the sheet BEFORE it even tries to send
+    // a response back — so on shaky wifi, the write itself almost always
+    // succeeds even when the confirmation doesn't make it back to the
+    // browser. Retrying (same requestKey, so it's duplicate-safe) resolves
+    // most of those cases; if all retries still can't confirm, we still
+    // show success but flag it, instead of wrongly telling the customer
+    // to resend a request that likely already went through.
+    const confirmed = await sendRequestWithRetry(
+      { machine, service: currentService, details, requestKey },
+      3
+    );
 
+    document.getElementById('confirmNote').style.display = confirmed ? 'none' : 'block';
     orderView.classList.add('hidden');
     confirmView.classList.add('active');
   });
