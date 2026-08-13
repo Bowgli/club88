@@ -97,6 +97,38 @@
     font-size:14px;
     margin:0 0 20px;
   }
+  .instructions{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:16px 18px;
+    margin-top:28px;
+    margin-bottom:22px;
+    font-size:15px;
+    line-height:1.6;
+    color:var(--cream-dim);
+  }
+  .instructions-title{
+    font-weight:700;
+    font-size:16px;
+    color:var(--cream);
+    margin:0 0 12px;
+  }
+  .instructions ol{
+    margin:0 0 14px;
+    padding-left:22px;
+  }
+  .instructions ol li{ margin-bottom:8px; }
+  .instructions ul{
+    margin:8px 0 0;
+    padding-left:20px;
+  }
+  .instructions ul li{ margin-bottom:4px; }
+  .instructions-thanks{
+    margin:0;
+    font-size:15px;
+    color:var(--cream);
+  }
   .grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
   .option{
     background:var(--card);
@@ -246,6 +278,25 @@
         <button class="option" data-service="Snacks"><span class="tag">Bites</span>Snacks</button>
         <button class="option" data-service="Voucher"><span class="tag">Slot Club</span>Redeem voucher</button>
         <button class="option" data-service="Machine Service"><span class="tag">Support</span>Machine service</button>
+      </div>
+
+      <div class="instructions">
+        <p class="instructions-title">📱 ONLINE REQUEST SERVICE</p>
+        <ol>
+          <li>Scan the dedicated QR code on the gaming machine you are playing.</li>
+          <li>Make sure you have an internet connection.</li>
+          <li>No mobile data? Connect to our FREE Guest Wi-Fi:
+            <ul>
+              <li>Saipan Vegas Guest Wi-Fi — No password</li>
+              <li>Club 88 Guest Wi-Fi — No password</li>
+            </ul>
+          </li>
+          <li>Select your request: Drinks, Snacks, Voucher Redemption, or Machine Service.</li>
+          <li>Check your request and press "SEND REQUEST."</li>
+          <li>Wait for the "Request Sent" message to make sure your request was successfully submitted.</li>
+          <li>If you have another request, you can submit another request.</li>
+        </ol>
+        <p class="instructions-thanks">Thank you for using our Online Request System! 😊<br>We are happy to serve you!</p>
       </div>
     </div>
 
@@ -461,7 +512,7 @@
     document.getElementById('stickValue').textContent = stickQty;
   });
   document.getElementById('stickPlus').addEventListener('click', () => {
-    stickQty = stickQty + 1;
+    stickQty = Math.min(2, stickQty + 1);
     document.getElementById('stickValue').textContent = stickQty;
   });
 
