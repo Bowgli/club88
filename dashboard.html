@@ -197,7 +197,7 @@
   // see worker.js). Handles list + mark-done for this dashboard. New order
   // submissions from customers still go through Apps Script (order.html) —
   // unaffected by this change.
-  const WORKER_URL = 'https://club88-dashboard.techsupport-saipanvegas.workers.dev';
+  const WORKER_URL = 'httpsclub88-dashboard.techsupport-saipanvegas.workers.dev';
 
   let allRequests = [];
   let allStaff = [];
@@ -262,27 +262,37 @@
     }
   });
 
-  // 3-second bell alarm — three chimes spaced across ~3 seconds
+  // 5-second bell alarm — five chimes at full volume, run through a
+  // compressor so pushing the gain to max doesn't distort/clip.
   function playAlarmBell() {
     if (!soundEnabled || !audioCtx) return;
     try {
+      const compressor = audioCtx.createDynamicsCompressor();
+      compressor.threshold.setValueAtTime(-12, audioCtx.currentTime);
+      compressor.knee.setValueAtTime(6, audioCtx.currentTime);
+      compressor.ratio.setValueAtTime(12, audioCtx.currentTime);
+      compressor.attack.setValueAtTime(0.003, audioCtx.currentTime);
+      compressor.release.setValueAtTime(0.15, audioCtx.currentTime);
+      compressor.connect(audioCtx.destination);
+
       const freqs = [988, 1480, 1976];
-      [0, 1, 2].forEach(offset => {
+      const chimeCount = 5;
+      for (let offset = 0; offset < chimeCount; offset++) {
         const now = audioCtx.currentTime + offset;
-        freqs.forEach((f, i) => {
+        freqs.forEach((f) => {
           const osc = audioCtx.createOscillator();
           const gain = audioCtx.createGain();
           osc.type = 'sine';
           osc.frequency.value = f;
           gain.gain.setValueAtTime(0.0001, now);
-          gain.gain.exponentialRampToValueAtTime(0.3 / (i + 1), now + 0.01);
+          gain.gain.exponentialRampToValueAtTime(1, now + 0.01); // full volume — compressor keeps it from clipping
           gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.9);
           osc.connect(gain);
-          gain.connect(audioCtx.destination);
+          gain.connect(compressor);
           osc.start(now);
           osc.stop(now + 1);
         });
-      });
+      }
     } catch (err) {
       console.error('Alarm sound failed', err);
     }
