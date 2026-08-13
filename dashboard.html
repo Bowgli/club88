@@ -262,9 +262,8 @@
     }
   });
 
-  // Classic telephone-style ring: dual tone (440Hz + 480Hz, same pair old
-  // landline phones use), 7 short "brrring" bursts, full volume through a
-  // compressor so it doesn't distort/clip.
+  // 5-second bell alarm — five chimes at full volume, run through a
+  // compressor so pushing the gain to max doesn't distort/clip.
   function playAlarmBell() {
     if (!soundEnabled || !audioCtx) return;
     try {
@@ -276,27 +275,22 @@
       compressor.release.setValueAtTime(0.15, audioCtx.currentTime);
       compressor.connect(audioCtx.destination);
 
-      const ringFreqs = [440, 480]; // classic telephone ring dual-tone
-      const ringCount = 7;
-      const ringDuration = 0.4;  // length of each "brrring" burst
-      const gapDuration = 0.25;  // silence between rings
-      const cycle = ringDuration + gapDuration;
-
-      for (let i = 0; i < ringCount; i++) {
-        const start = audioCtx.currentTime + i * cycle;
-        ringFreqs.forEach((f) => {
+      const freqs = [988, 1480, 1976];
+      const chimeCount = 5;
+      for (let offset = 0; offset < chimeCount; offset++) {
+        const now = audioCtx.currentTime + offset;
+        freqs.forEach((f) => {
           const osc = audioCtx.createOscillator();
           const gain = audioCtx.createGain();
           osc.type = 'sine';
           osc.frequency.value = f;
-          gain.gain.setValueAtTime(0.0001, start);
-          gain.gain.exponentialRampToValueAtTime(1, start + 0.02); // full volume — compressor keeps it from clipping
-          gain.gain.setValueAtTime(1, start + ringDuration - 0.05);
-          gain.gain.exponentialRampToValueAtTime(0.0001, start + ringDuration);
+          gain.gain.setValueAtTime(0.0001, now);
+          gain.gain.exponentialRampToValueAtTime(1, now + 0.01); // full volume — compressor keeps it from clipping
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.9);
           osc.connect(gain);
           gain.connect(compressor);
-          osc.start(start);
-          osc.stop(start + ringDuration + 0.02);
+          osc.start(now);
+          osc.stop(now + 1);
         });
       }
     } catch (err) {
