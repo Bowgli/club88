@@ -262,9 +262,9 @@
     }
   });
 
-  // Classic telephone-style ring: dual tone (440Hz + 480Hz, same pair old
-  // landline phones use), 7 short "brrring" bursts, full volume through a
-  // compressor so it doesn't distort/clip.
+  // Doorbell "ding-dong": high note then low note, each with a bell-like
+  // decay (fast attack, slow fade), repeated 5 times, full volume through
+  // a compressor so it doesn't distort/clip.
   function playAlarmBell() {
     if (!soundEnabled || !audioCtx) return;
     try {
@@ -276,27 +276,29 @@
       compressor.release.setValueAtTime(0.15, audioCtx.currentTime);
       compressor.connect(audioCtx.destination);
 
-      const ringFreqs = [440, 480]; // classic telephone ring dual-tone
-      const ringCount = 7;
-      const ringDuration = 0.4;  // length of each "brrring" burst
-      const gapDuration = 0.25;  // silence between rings
-      const cycle = ringDuration + gapDuration;
+      const dingFreq = 784;  // "ding" — higher note
+      const dongFreq = 587;  // "dong" — lower note
+      const chimeCount = 5;
+      const noteDuration = 0.45;   // length of each ding/dong note
+      const noteGap = 0.1;         // gap between ding and dong
+      const chimeGap = 0.35;       // gap before the next full ding-dong
+      const chimeCycle = noteDuration * 2 + noteGap + chimeGap;
 
-      for (let i = 0; i < ringCount; i++) {
-        const start = audioCtx.currentTime + i * cycle;
-        ringFreqs.forEach((f) => {
+      for (let i = 0; i < chimeCount; i++) {
+        const chimeStart = audioCtx.currentTime + i * chimeCycle;
+        [dingFreq, dongFreq].forEach((freq, idx) => {
+          const start = chimeStart + idx * (noteDuration + noteGap);
           const osc = audioCtx.createOscillator();
           const gain = audioCtx.createGain();
           osc.type = 'sine';
-          osc.frequency.value = f;
+          osc.frequency.value = freq;
           gain.gain.setValueAtTime(0.0001, start);
-          gain.gain.exponentialRampToValueAtTime(1, start + 0.02); // full volume — compressor keeps it from clipping
-          gain.gain.setValueAtTime(1, start + ringDuration - 0.05);
-          gain.gain.exponentialRampToValueAtTime(0.0001, start + ringDuration);
+          gain.gain.exponentialRampToValueAtTime(1, start + 0.015); // full volume — compressor keeps it from clipping
+          gain.gain.exponentialRampToValueAtTime(0.0001, start + noteDuration); // bell-like fade
           osc.connect(gain);
           gain.connect(compressor);
           osc.start(start);
-          osc.stop(start + ringDuration + 0.02);
+          osc.stop(start + noteDuration + 0.05);
         });
       }
     } catch (err) {
