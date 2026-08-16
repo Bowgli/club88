@@ -193,56 +193,16 @@
 </div>
 
 <script>
-  // Fast proxy Worker (reads/writes the sheet directly via the Sheets API —
-  // see worker.js). Handles list + mark-done for this dashboard. New order
-  // submissions from customers still go through Apps Script (order.html) —
-  // unaffected by this change.
-  const WORKER_URL = 'https://club88-dashboard.techsupport-saipanvegas.workers.dev';
+  // Replace with your deployed Apps Script Web App URL
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzO1RKAOKcmx7-x765DOnSkalkBdF7cSmEleapHCm8_eJmHOp9hxkCszp6cIslmB9oO/exec';
 
   let allRequests = [];
-  let allStaff = [];
-  let knownRequestIds = null;
+  let requestsById = new Map();
+  let missCounts = new Map();
+  let pendingStatusUpdates = new Map();
+  let hasLoadedOnce = false;
   let audioCtx = null;
   let soundEnabled = false;
-  let isLoadingList = false;
-
-  // Statuses the staff just clicked but whose update fetch hasn't finished
-  // yet. While a request's id is in here, an in-flight poll won't
-  // overwrite its status with a possibly-stale value from the sheet — that
-  // race is what caused a "Done" click to flash back to "Pending" and then
-  // flip to "Done" again a few seconds later.
-  const inFlightUpdates = new Map();
-
-  // ---- On-duty staff computation (mirrors Code.gs's findOnDutyStaff_) ----
-  // Runs in the browser now instead of server-side, using the browser's
-  // own local time/timezone — avoids the Worker having to guess the
-  // venue's timezone when reading raw sheet data.
-  const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-  function toMinutes(value) {
-    const parts = (value || '').toString().split(':');
-    if (parts.length < 2) return null;
-    const h = parseInt(parts[0], 10), m = parseInt(parts[1], 10);
-    if (isNaN(h) || isNaN(m)) return null;
-    return h * 60 + m;
-  }
-
-  function findOnDutyStaff(date, staffList) {
-    const dayName = DAY_NAMES[date.getDay()];
-    const minutesNow = date.getHours() * 60 + date.getMinutes();
-    return staffList.filter(staff => {
-      const days = (staff.days || '').toString();
-      const worksToday = days.toLowerCase().indexOf('daily') !== -1 ||
-        days.split(',').map(d => d.trim()).indexOf(dayName) !== -1;
-      if (!worksToday) return false;
-      const start = toMinutes(staff.shiftStart);
-      const end = toMinutes(staff.shiftEnd);
-      if (start === null || end === null) return false;
-      return end > start
-        ? (minutesNow >= start && minutesNow < end)
-        : (minutesNow >= start || minutesNow < end);
-    }).map(s => s.name + ' (' + s.role + ')');
-  }
 
   const soundToggle = document.getElementById('soundToggle');
   soundToggle.addEventListener('click', () => {
@@ -262,78 +222,91 @@
     }
   });
 
-  // Doorbell "ding-dong": high note then low note, each with a bell-like
-  // decay (fast attack, slow fade), repeated 5 times, full volume through
-  // a compressor so it doesn't distort/clip.
+  // 5-second bell alarm — five chimes spaced across ~5 seconds
   function playAlarmBell() {
     if (!soundEnabled || !audioCtx) return;
     try {
-      const compressor = audioCtx.createDynamicsCompressor();
-      compressor.threshold.setValueAtTime(-12, audioCtx.currentTime);
-      compressor.knee.setValueAtTime(6, audioCtx.currentTime);
-      compressor.ratio.setValueAtTime(12, audioCtx.currentTime);
-      compressor.attack.setValueAtTime(0.003, audioCtx.currentTime);
-      compressor.release.setValueAtTime(0.15, audioCtx.currentTime);
-      compressor.connect(audioCtx.destination);
-
-      const dingFreq = 784;  // "ding" — higher note
-      const dongFreq = 587;  // "dong" — lower note
-      const chimeCount = 5;
-      const noteDuration = 0.45;   // length of each ding/dong note
-      const noteGap = 0.1;         // gap between ding and dong
-      const chimeGap = 0.35;       // gap before the next full ding-dong
-      const chimeCycle = noteDuration * 2 + noteGap + chimeGap;
-
-      for (let i = 0; i < chimeCount; i++) {
-        const chimeStart = audioCtx.currentTime + i * chimeCycle;
-        [dingFreq, dongFreq].forEach((freq, idx) => {
-          const start = chimeStart + idx * (noteDuration + noteGap);
+      const freqs = [988, 1480, 1976];
+      [0, 1, 2, 3, 4].forEach(offset => {
+        const now = audioCtx.currentTime + offset;
+        freqs.forEach((f, i) => {
           const osc = audioCtx.createOscillator();
           const gain = audioCtx.createGain();
           osc.type = 'sine';
-          osc.frequency.value = freq;
-          gain.gain.setValueAtTime(0.0001, start);
-          gain.gain.exponentialRampToValueAtTime(1, start + 0.015); // full volume — compressor keeps it from clipping
-          gain.gain.exponentialRampToValueAtTime(0.0001, start + noteDuration); // bell-like fade
+          osc.frequency.value = f;
+          gain.gain.setValueAtTime(0.0001, now);
+          gain.gain.exponentialRampToValueAtTime(0.3 / (i + 1), now + 0.01);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.9);
           osc.connect(gain);
-          gain.connect(compressor);
-          osc.start(start);
-          osc.stop(start + noteDuration + 0.05);
+          gain.connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 1);
         });
-      }
+      });
     } catch (err) {
       console.error('Alarm sound failed', err);
     }
   }
 
   async function loadRequests() {
-    if (isLoadingList) return; // avoid overlapping polls if a response is slow
-    isLoadingList = true;
     try {
-      const res = await fetch(WORKER_URL + '?action=list');
+      const res = await fetch(APPS_SCRIPT_URL + '?action=list');
       const data = await res.json();
-      if (data.ok) {
-        allStaff = data.staff || [];
+      if (!data.ok) return;
 
-        const currentIds = data.requests.map(r => r.id);
-        if (knownRequestIds !== null) {
-          const hasNewRequest = currentIds.some(id => !knownRequestIds.has(id));
-          if (hasNewRequest) playAlarmBell();
+      let hasNewRequest = false;
+      const incomingIds = new Set();
+
+      data.requests.forEach(r => {
+        incomingIds.add(r.id);
+        if (hasLoadedOnce && !requestsById.has(r.id)) {
+          hasNewRequest = true;
         }
-        knownRequestIds = new Set(currentIds);
 
-        allRequests = data.requests.map(r => {
-          const withDuty = { ...r, onDuty: findOnDutyStaff(new Date(r.timestamp), allStaff) };
-          return inFlightUpdates.has(r.id) ? { ...withDuty, status: inFlightUpdates.get(r.id) } : withDuty;
-        });
-        populateMachineFilter();
-        render();
-        renderDutyChips(findOnDutyStaff(new Date(), allStaff));
-      }
+        // If we just marked this request's status ourselves, trust our own value
+        // until the server confirms it (or 15s pass) — this stops a lagging Sheets
+        // read from flashing the status back to its old value mid-update.
+        const pending = pendingStatusUpdates.get(r.id);
+        if (pending) {
+          if (r.status === pending.status) {
+            pendingStatusUpdates.delete(r.id); // server confirmed, safe to trust it now
+          } else if (Date.now() - pending.timestamp < 15000) {
+            r = Object.assign({}, r, { status: pending.status });
+          } else {
+            pendingStatusUpdates.delete(r.id); // gave it long enough, trust the server
+          }
+        }
+
+        requestsById.set(r.id, r);
+        missCounts.set(r.id, 0);
+      });
+
+      // A request only gets removed after being absent for 2 consecutive polls in a row —
+      // this absorbs Google Sheets' occasional read lag so a request never flickers away
+      // and reappears. Real removals (e.g. someone deletes a row in the Sheet) still clear
+      // out within ~6 seconds.
+      Array.from(requestsById.keys()).forEach(id => {
+        if (!incomingIds.has(id)) {
+          const misses = (missCounts.get(id) || 0) + 1;
+          missCounts.set(id, misses);
+          if (misses >= 2) {
+            requestsById.delete(id);
+            missCounts.delete(id);
+          }
+        }
+      });
+
+      if (hasLoadedOnce && hasNewRequest) playAlarmBell();
+      hasLoadedOnce = true;
+
+      allRequests = Array.from(requestsById.values())
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+      populateMachineFilter();
+      render();
+      renderDutyChips(data.onDutyNow);
     } catch (err) {
       console.error('Failed to load requests', err);
-    } finally {
-      isLoadingList = false;
     }
   }
 
@@ -430,25 +403,25 @@
     const previousStatus = target ? target.status : null;
     if (target) {
       target.status = status;
+      pendingStatusUpdates.set(id, { status: status, timestamp: Date.now() });
       render();
     }
-    inFlightUpdates.set(id, status);
 
     try {
-      const res = await fetch(WORKER_URL + '?action=update&id=' + encodeURIComponent(id) + '&status=' + encodeURIComponent(status));
+      const res = await fetch(APPS_SCRIPT_URL + '?action=update&id=' + encodeURIComponent(id) + '&status=' + encodeURIComponent(status));
       const data = await res.json();
       if (!data.ok && target) {
+        pendingStatusUpdates.delete(id);
         target.status = previousStatus; // revert if the save actually failed
         render();
       }
     } catch (err) {
       console.error(err);
       if (target) {
+        pendingStatusUpdates.delete(id);
         target.status = previousStatus; // revert on network error
         render();
       }
-    } finally {
-      inFlightUpdates.delete(id);
     }
   }
 
@@ -456,36 +429,8 @@
   document.getElementById('filterService').addEventListener('change', render);
   document.getElementById('filterStatus').addEventListener('change', render);
 
-  // A background/minimized tab does the customer/staff no good but still
-  // hammers Apps Script every few seconds if left running — that pile-up
-  // from forgotten tabs is what caused the 404s and multi-second waits.
-  // Pausing polling while the tab isn't visible, and resuming right away
-  // when it becomes visible again, keeps only actively-viewed dashboards
-  // contributing load.
-  const POLL_INTERVAL_MS = 5000;
-  let pollTimer = null;
-
-  function schedulePoll() {
-    if (pollTimer) clearTimeout(pollTimer);
-    if (document.visibilityState !== 'visible') return; // don't schedule while hidden
-    pollTimer = setTimeout(async () => {
-      await loadRequests();
-      schedulePoll();
-    }, POLL_INTERVAL_MS);
-  }
-
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      loadRequests(); // refresh immediately on return, then resume the cycle
-      schedulePoll();
-    } else if (pollTimer) {
-      clearTimeout(pollTimer);
-      pollTimer = null;
-    }
-  });
-
   loadRequests();
-  schedulePoll();
+  setInterval(loadRequests, 5000);
 </script>
 </body>
 </html>
