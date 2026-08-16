@@ -97,38 +97,6 @@
     font-size:14px;
     margin:0 0 20px;
   }
-  .instructions{
-    background:var(--card);
-    border:1px solid var(--border);
-    border-radius:14px;
-    padding:16px 18px;
-    margin-top:28px;
-    margin-bottom:22px;
-    font-size:15px;
-    line-height:1.6;
-    color:var(--cream-dim);
-  }
-  .instructions-title{
-    font-weight:700;
-    font-size:16px;
-    color:var(--cream);
-    margin:0 0 12px;
-  }
-  .instructions ol{
-    margin:0 0 14px;
-    padding-left:22px;
-  }
-  .instructions ol li{ margin-bottom:8px; }
-  .instructions ul{
-    margin:8px 0 0;
-    padding-left:20px;
-  }
-  .instructions ul li{ margin-bottom:4px; }
-  .instructions-thanks{
-    margin:0;
-    font-size:15px;
-    color:var(--cream);
-  }
   .grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
   .option{
     background:var(--card);
@@ -279,25 +247,6 @@
         <button class="option" data-service="Voucher"><span class="tag">Slot Club</span>Redeem voucher</button>
         <button class="option" data-service="Machine Service"><span class="tag">Support</span>Machine service</button>
       </div>
-
-      <div class="instructions">
-        <p class="instructions-title">📱 ONLINE REQUEST SERVICE</p>
-        <ol>
-          <li>Scan the dedicated QR code on the gaming machine you are playing.</li>
-          <li>Make sure you have an internet connection.</li>
-          <li>No mobile data? Connect to our FREE Guest Wi-Fi:
-            <ul>
-              <li>Saipan Vegas Guest Wi-Fi — No password</li>
-              <li>Club 88 Guest Wi-Fi — No password</li>
-            </ul>
-          </li>
-          <li>Select your request: Drinks, Snacks, Voucher Redemption, or Machine Service.</li>
-          <li>Check your request and press "SEND REQUEST."</li>
-          <li>Wait for the "Request Sent" message to make sure your request was successfully submitted.</li>
-          <li>If you have another request, you can submit another request.</li>
-        </ol>
-        <p class="instructions-thanks">Thank you for using our Online Request System! 😊<br>We are happy to serve you!</p>
-      </div>
     </div>
 
     <div id="detailView" class="detail-view">
@@ -379,7 +328,6 @@
     <div class="check">&#10003;</div>
     <h2>Request sent</h2>
     <p>A host will be with you at the machine shortly.</p>
-    <p id="confirmNote" style="display:none; font-size:12px; color:var(--cream-dim); margin:-10px 0 20px;">Signal was a little slow confirming this — if no one arrives in a few minutes, feel free to send it again.</p>
     <button class="again" id="againBtn">Make another request</button>
   </div>
 
@@ -418,14 +366,6 @@
   let selectedDrinkType = '';
   let selectedWaterLevel = '';
   let stickQty = 1;
-  let isSubmitting = false;
-
-  // Unique per-request ID so the backend can spot and drop an accidental
-  // repeat (double tap, flaky connection, etc.) instead of logging it twice.
-  function newRequestKey() {
-    if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
-    return 'k-' + Date.now() + '-' + Math.random().toString(36).slice(2);
-  }
 
   function resetDetailFields() {
     selectedDrinkType = '';
@@ -512,7 +452,7 @@
     document.getElementById('stickValue').textContent = stickQty;
   });
   document.getElementById('stickPlus').addEventListener('click', () => {
-    stickQty = Math.min(2, stickQty + 1);
+    stickQty = stickQty + 1;
     document.getElementById('stickValue').textContent = stickQty;
   });
 
@@ -540,49 +480,14 @@
     }
   }
 
-  function wait(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  // Sends the request, retrying up to `maxAttempts` times if the response
-  // never comes back (flaky wifi, slow connection, etc). Every attempt
-  // reuses the SAME requestKey, so the backend's dedup guard makes retries
-  // safe — a retry after a request that actually landed just returns the
-  // same logged entry instead of creating a second row.
-  //
-  // Each attempt is capped at `timeoutMs`: plain fetch() has no built-in
-  // timeout, so on a bad mobile connection a single attempt could otherwise
-  // hang for 30+ seconds before ever trying again. Cutting it short and
-  // retrying gets to a result much faster — the sheet write itself is
-  // already fast, it's the confirmation coming back that can stall.
-  async function sendRequestWithRetry(payload, maxAttempts, timeoutMs) {
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      try {
-        const res = await fetch(APPS_SCRIPT_URL, {
-          method: 'POST',
-          body: new URLSearchParams(payload),
-          signal: controller.signal
-        });
-        const data = await res.json();
-        if (data && data.ok) return true;
-      } catch (err) {
-        console.error('Send attempt ' + attempt + ' failed', err);
-      } finally {
-        clearTimeout(timer);
-      }
-      if (attempt < maxAttempts) await wait(300 * attempt);
-    }
-    return false;
-  }
-
   document.getElementById('submitBtn').addEventListener('click', async (e) => {
-    if (isSubmitting) return; // blocks a double tap/click from firing twice
-    isSubmitting = true;
-
     const btn = e.target;
-    const requestKey = newRequestKey();
+
+    // Guard against rapid double-taps: once we've started sending, ignore any
+    // further click events that were already queued before the button visually disabled.
+    if (btn.disabled) return;
+    btn.disabled = true;
+
     let details = '';
 
     if (currentService === 'Drinks') {
@@ -604,29 +509,22 @@
     }
 
     playBellSound();
-    btn.disabled = true;
     btn.textContent = 'Sending...';
 
-    // Apps Script writes the row to the sheet BEFORE it even tries to send
-    // a response back — so on shaky wifi, the write itself almost always
-    // succeeds even when the confirmation doesn't make it back to the
-    // browser. Retrying (same requestKey, so it's duplicate-safe) resolves
-    // most of those cases; if all retries still can't confirm, we still
-    // show success but flag it, instead of wrongly telling the customer
-    // to resend a request that likely already went through.
-    const confirmed = await sendRequestWithRetry(
-      { machine, service: currentService, details, requestKey },
-      2,
-      2500
-    );
+    try {
+      await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        body: new URLSearchParams({ machine, service: currentService, details })
+      });
+    } catch (err) {
+      console.error(err);
+    }
 
-    document.getElementById('confirmNote').style.display = confirmed ? 'none' : 'block';
     orderView.classList.add('hidden');
     confirmView.classList.add('active');
   });
 
   document.getElementById('againBtn').addEventListener('click', () => {
-    isSubmitting = false;
     confirmView.classList.remove('active');
     orderView.classList.remove('hidden');
     detailView.classList.remove('active');
